@@ -6,6 +6,9 @@
 #define STB_TRUETYPE_IMPLEMENTATION
 #include <stb_truetype.h>
 
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/type_ptr.hpp>
+
 #ifndef GL_TEXTURE_SWIZZLE_RGBA
 #define GL_TEXTURE_SWIZZLE_RGBA 0x8E46
 #endif
@@ -103,6 +106,12 @@ void FontRenderer::renderText(GLuint fontShader, const std::string& text,
     glBindTexture(GL_TEXTURE_2D, fontTextureID);
     glUniform1i(glGetUniformLocation(fontShader, "fontTexture"), 0);
     glUniform4f(glGetUniformLocation(fontShader, "textColor"), color.r, color.g, color.b, color.a);
+
+    glm::mat4 projection = glm::ortho(0.0f,
+            static_cast<float>(windowSize.width),
+            static_cast<float>(windowSize.height), 0.0f);
+    glUniformMatrix4fv(glGetUniformLocation(fontShader, "projection"), 1,
+            GL_FALSE, glm::value_ptr(projection));
 
     glBindVertexArray(vao);
     glBindBuffer(GL_ARRAY_BUFFER, vbo);

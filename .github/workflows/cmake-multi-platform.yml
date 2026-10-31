@@ -2,9 +2,9 @@ name: CMake on multiple platforms
 
 on:
   push:
-    branches: [ "main", "feature/github-actions-testing" ]
+    branches: [ "main" ]
   pull_request:
-    branches: [ "main", "feature/github-actions-testing" ]
+    branches: [ "main" ]
   release:
     types: [ published ]
   workflow_dispatch:

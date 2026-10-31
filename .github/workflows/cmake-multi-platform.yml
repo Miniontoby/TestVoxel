@@ -58,7 +58,7 @@ jobs:
       if: runner.os == 'Linux'
       uses: awalsh128/cache-apt-pkgs-action@v1
       with:
-        packages: libglfw3-dev libglm-dev libsol2-dev nlohmann-json3-dev liblua5.4-dev libgl1-mesa-dev xorg-dev
+        packages: libglfw3-dev libglm-dev nlohmann-json3-dev liblua5.4-dev libgl1-mesa-dev xorg-dev
         version: ${{ hashFiles('.github/workflows/**') }}
 
     - name: Cache vcpkg binaries (Windows)

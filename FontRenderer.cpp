@@ -65,6 +65,20 @@ void FontRenderer::renderText(GLuint fontShader, const std::string& text,
         Dimensions2D resolution) {
     if (text.empty() || fontTextureID == 0) return;
 
+    // The vertices are flattened quads, in the following format:
+    // { x, y, tx, ty, ...}
+    std::vector<float> vertices = this->generateFontVertices(x, y, scaleX,
+            scaleY, resolution, text);
+
+    if (vertices.empty()) return;
+
+    this->drawGLFontQuads(fontShader, color, resolution, vertices);
+}
+
+std::vector<float> FontRenderer::generateFontVertices(float x, float y,
+        float scaleX, float scaleY, Dimensions2D resolution,
+        std::string_view text) const
+{
     std::vector<float> vertices;
     float rx = 0.0f;
     float ry = 0.0f;
@@ -97,9 +111,7 @@ void FontRenderer::renderText(GLuint fontShader, const std::string& text,
         vertices.insert(vertices.end(), std::begin(quad), std::end(quad));
     }
 
-    if (vertices.empty()) return;
-
-    this->drawGLFontQuads(fontShader, color, resolution, vertices);
+    return vertices;
 }
 
 void FontRenderer::drawGLFontQuads(GLuint fontShader, glm::vec4 color,

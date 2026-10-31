@@ -7,10 +7,15 @@ on:
     branches: [ "main", "feature/github-actions-testing" ]
   pull_request:
     branches: [ "main", "feature/github-actions-testing" ]
+  release:
+    types: [ published ]
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: ${{ matrix.os }}
+    permissions:
+      contents: write
 
     strategy:
       # Set fail-fast to false to ensure that feedback is delivered for all matrix combinations. Consider changing this to true when your workflow is stable.
@@ -67,7 +72,7 @@ jobs:
 
     - name: Cache vcpkg binaries (Windows)
       if: runner.os == 'Windows'
-      uses: actions/cache@v4
+      uses: actions/cache@v6
       with:
         path: ${{ github.workspace }}/vcpkg_cache
         key: vcpkg-${{ runner.os }}-${{ hashFiles('.github/workflows/**') }}
@@ -102,3 +107,41 @@ jobs:
       # See https://cmake.org/cmake/help/latest/manual/ctest.1.html for more detail
       run: ctest --build-config ${{ matrix.build_type }}
 
+    - name: Package
+      if: github.event_name == 'release' || github.event_name == 'workflow_dispatch'
+      shell: bash
+      env:
+        BUILD_DIR: ${{ steps.strings.outputs.build-output-dir }}
+        BUILD_TYPE: ${{ matrix.build_type }}
+        PKG_NAME: ${{ github.event.repository.name }}-${{ runner.os }}-${{ matrix.c_compiler }}
+        SKIP_DIRS: ".git .github dist deps libs vcpkg_cache"
+      run: |
+        SKIP_DIRS="$SKIP_DIRS $(basename "$BUILD_DIR")"
+        mkdir -p "dist/$PKG_NAME"
+        if [ "$RUNNER_OS" = "Windows" ]; then
+          cp "$BUILD_DIR/$BUILD_TYPE"/*.exe "dist/$PKG_NAME/"
+          cp "$BUILD_DIR/$BUILD_TYPE"/*.dll "dist/$PKG_NAME/" 2>/dev/null || true
+        else
+          find "$BUILD_DIR" -maxdepth 1 -type f -executable -exec cp {} "dist/$PKG_NAME/" \;
+        fi
+        for d in */; do
+          d="${d%/}"
+          case " $SKIP_DIRS " in *" $d "*) continue ;; esac
+          cp -r "$d" "dist/$PKG_NAME/"
+        done
+        cd dist
+        cmake -E tar cf "$PKG_NAME.zip" --format=zip "$PKG_NAME"
+
+    - name: Upload artifact
+      if: github.event_name == 'release' || github.event_name == 'workflow_dispatch'
+      uses: actions/upload-artifact@v7
+      with:
+        name: VoxelEngine-${{ runner.os }}-${{ matrix.c_compiler }}
+        path: dist/*.zip
+        if-no-files-found: error
+
+    - name: Attach to GitHub release
+      if: github.event_name == 'release'
+      uses: softprops/action-gh-release@v3
+      with:
+        files: dist/*.zip

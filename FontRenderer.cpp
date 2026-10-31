@@ -99,6 +99,12 @@ void FontRenderer::renderText(GLuint fontShader, const std::string& text,
 
     if (vertices.empty()) return;
 
+    this->drawGLFontQuads(fontShader, color, windowSize, vertices);
+}
+
+void FontRenderer::drawGLFontQuads(GLuint fontShader, glm::vec4 color,
+        Dimensions2D resolution, const std::vector<float>& vertices)
+{
     glDisable(GL_DEPTH_TEST);
     glUseProgram(fontShader);
 
@@ -108,8 +114,8 @@ void FontRenderer::renderText(GLuint fontShader, const std::string& text,
     glUniform4f(glGetUniformLocation(fontShader, "textColor"), color.r, color.g, color.b, color.a);
 
     glm::mat4 projection = glm::ortho(0.0f,
-            static_cast<float>(windowSize.width),
-            static_cast<float>(windowSize.height), 0.0f);
+            static_cast<float>(resolution.width),
+            static_cast<float>(resolution.height), 0.0f);
     glUniformMatrix4fv(glGetUniformLocation(fontShader, "projection"), 1,
             GL_FALSE, glm::value_ptr(projection));
 

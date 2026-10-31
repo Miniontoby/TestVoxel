@@ -27,6 +27,11 @@ public:
     void renderText(GLuint fontShader, const std::string& text, float x,
             float y, float scaleX, float scaleY, glm::vec4 color,
             Dimensions2D windowSize);
+
+private:
+    void drawGLFontQuads(GLuint fontShader, glm::vec4 color,
+            Dimensions2D resolution,
+            const std::vector<float>& vertices);
 };
 
 #endif // FONTRENDERER_H

@@ -58,11 +58,14 @@ jobs:
       if: runner.os == 'Linux'
       run: |
         sudo apt-get update
-        sudo apt-get install -y libglfw3-dev libgl1-mesa-dev xorg-dev
-  
+        sudo apt-get install -y libglfw3-dev libglm-dev liblua5.4-dev libgl1-mesa-dev xorg-dev
+
     - name: Install dependencies (Windows)
       if: runner.os == 'Windows'
-      run: vcpkg install glfw3:x64-windows
+      shell: bash
+      run: |
+        vcpkg install glfw3:x64-windows glm:x64-windows lua:x64-windows
+        echo "CMAKE_TOOLCHAIN_FILE=$VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake" >> "$GITHUB_ENV"
 
     - name: Configure CMake
       # Configure CMake in a 'build' subdirectory. `CMAKE_BUILD_TYPE` is only required if you are using a single-configuration generator such as make.

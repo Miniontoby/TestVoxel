@@ -574,6 +574,9 @@ void main() {
 }
 )";
 
+// The font fragment shader uses the GL_RED channel. For simplicity, we don't
+// try to swizzle texture channels, since this shader is only used for fonts
+// and we have one font texture.
 const char* fontFragmentShaderSource = R"(
 #version 330 core
 in vec2 TexCoords;

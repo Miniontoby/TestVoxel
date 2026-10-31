@@ -26,7 +26,7 @@ public:
     bool init(const std::string& fontPath);
     void renderText(GLuint fontShader, const std::string& text, float x,
             float y, float scaleX, float scaleY, glm::vec4 color,
-            Dimensions2D windowSize);
+            Dimensions2D resolution);
 
 private:
     void drawGLFontQuads(GLuint fontShader, glm::vec4 color,

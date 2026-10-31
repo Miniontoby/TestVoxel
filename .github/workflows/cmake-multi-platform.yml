@@ -18,16 +18,17 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        build_type: [Release]
         include:
           - os: windows-latest
+            build_type: Release
             c_compiler: cl
             cpp_compiler: cl
           - os: ubuntu-26.04
+            build_type: Release
             c_compiler: clang
             cpp_compiler: clang++
-          # MacOS might not work...
           - os: macos-latest
+            build_type: Release
             c_compiler: clang
             cpp_compiler: clang++
 

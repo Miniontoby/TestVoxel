@@ -104,13 +104,18 @@ jobs:
         HOMEBREW_NO_INSTALL_CLEANUP: 1
       run: brew install glfw glm sol2 nlohmann-json lua
 
-    - name: macOS build workarounds (opengl32 stub, OpenGL framework)
+    - name: macOS build workarounds (opengl32 stub, OpenGL framework, Lua)
       if: runner.os == 'macOS'
       run: |
         mkdir -p "$RUNNER_TEMP/stubs"
         clang -x c -c /dev/null -o "$RUNNER_TEMP/stubs/stub.o"
         ar rcs "$RUNNER_TEMP/stubs/libopengl32.a" "$RUNNER_TEMP/stubs/stub.o"
-        echo "LDFLAGS=-L$RUNNER_TEMP/stubs -framework OpenGL" >> "$GITHUB_ENV"
+        if [ "${{ matrix.lua }}" = "vcpkg" ]; then
+          LUA_PREFIX="$LUA_CFG_DIR/../.."
+        else
+          LUA_PREFIX="$(brew --prefix lua)"
+        fi
+        echo "LDFLAGS=-L$RUNNER_TEMP/stubs -framework OpenGL -L$LUA_PREFIX/lib -llua" >> "$GITHUB_ENV"
 
     - name: Install Lua 5.4 via vcpkg (Linux/macOS)
       if: matrix.lua == 'vcpkg' && runner.os != 'Windows'

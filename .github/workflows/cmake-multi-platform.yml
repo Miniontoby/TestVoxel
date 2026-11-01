@@ -108,10 +108,6 @@ jobs:
     - name: Install Lua 5.4 via vcpkg (Linux/macOS)
       if: matrix.lua == 'vcpkg' && runner.os != 'Windows'
       shell: bash
-      env:
-        CFLAGS: ""
-        CXXFLAGS: ""
-        LDFLAGS: ""
       run: |
         if [ "$RUNNER_OS" = "macOS" ]; then
           if [ "$(uname -m)" = "arm64" ]; then TRIPLET=arm64-osx; else TRIPLET=x64-osx; fi
@@ -133,11 +129,7 @@ jobs:
         "$VCPKG_INSTALLATION_ROOT/vcpkg" install --triplet "$TRIPLET" \
           --x-manifest-root="$RUNNER_TEMP/vcpkg_lua" \
           --x-install-root="$RUNNER_TEMP/vcpkg_lua/installed"
-        find "$RUNNER_TEMP/vcpkg_lua/installed/$TRIPLET" -iname '*lua*' \( -name '*.cmake' -o -name 'lua.h' -o -name '*.a' \)
-        CFG="$(find "$RUNNER_TEMP/vcpkg_lua/installed/$TRIPLET" \( -iname 'unofficial-lua-config.cmake' -o -iname 'unofficial-luaConfig.cmake' \) | head -n1)"
-        echo "found config: $CFG"
         echo "CMAKE_PREFIX_PATH=$RUNNER_TEMP/vcpkg_lua/installed/$TRIPLET" >> "$GITHUB_ENV"
-        echo "LUA_CFG_DIR=$(dirname "$CFG")" >> "$GITHUB_ENV"
 
     - name: Configure CMake
       run: >
@@ -192,6 +184,7 @@ jobs:
         path: |
           dist/*.zip
           dist/*.tar.gz
+        archive: false
         if-no-files-found: error
 
     - name: Attach to GitHub release

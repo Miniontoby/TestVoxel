@@ -1,0 +1,197 @@
+name: CMake on multiple platforms
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  release:
+    types: [ published ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: ${{ matrix.os }} (${{ matrix.lua || 'default' }} lua)
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: write
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            build_type: Release
+            c_compiler: cl
+            cpp_compiler: cl
+          - os: ubuntu-26.04
+            build_type: Release
+            c_compiler: clang
+            cpp_compiler: clang++
+          - os: macos-latest
+            build_type: Release
+            c_compiler: clang
+            cpp_compiler: clang++
+          - os: ubuntu-26.04
+            build_type: Release
+            c_compiler: clang
+            cpp_compiler: clang++
+            lua: vcpkg
+          - os: macos-latest
+            build_type: Release
+            c_compiler: clang
+            cpp_compiler: clang++
+            lua: vcpkg
+
+    steps:
+    - uses: actions/checkout@v7
+
+    - name: Set reusable strings
+      id: strings
+      shell: bash
+      run: |
+        echo "build-output-dir=${{ github.workspace }}/build_ci" >> "$GITHUB_OUTPUT"
+        case "${{ github.event_name }}" in
+          release|workflow_dispatch|pull_request) PKG=true ;;
+          *) PKG=false ;;
+        esac
+        [ "${{ matrix.lua }}" = "vcpkg" ] && PKG=false
+        echo "package=$PKG" >> "$GITHUB_OUTPUT"
+
+    - name: Install dependencies (Linux)
+      if: runner.os == 'Linux' && matrix.lua != 'vcpkg'
+      uses: awalsh128/cache-apt-pkgs-action@v1
+      with:
+        packages: libglfw3-dev libglm-dev sol2-dev nlohmann-json3-dev liblua5.4-dev libgl1-mesa-dev xorg-dev
+        version: ${{ hashFiles('.github/workflows/**') }}
+
+    - name: Install dependencies (Linux, vcpkg Lua)
+      if: runner.os == 'Linux' && matrix.lua == 'vcpkg'
+      uses: awalsh128/cache-apt-pkgs-action@v1
+      with:
+        packages: libglfw3-dev libglm-dev sol2-dev nlohmann-json3-dev libgl1-mesa-dev xorg-dev
+        version: ${{ hashFiles('.github/workflows/**') }}
+
+    - name: Cache vcpkg binaries (Windows)
+      if: runner.os == 'Windows'
+      uses: actions/cache@v6
+      with:
+        path: ${{ github.workspace }}/vcpkg_cache
+        key: vcpkg-${{ runner.os }}-${{ hashFiles('.github/workflows/**') }}
+
+    - name: Install dependencies (Windows)
+      if: runner.os == 'Windows'
+      shell: bash
+      env:
+        VCPKG_DEFAULT_BINARY_CACHE: ${{ github.workspace }}/vcpkg_cache
+      run: |
+        mkdir -p "$VCPKG_DEFAULT_BINARY_CACHE"
+        vcpkg install glfw3:x64-windows glm:x64-windows sol2:x64-windows nlohmann-json:x64-windows lua:x64-windows
+        echo "CMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake" >> "$GITHUB_ENV"
+
+    - name: Cache Homebrew downloads (macOS)
+      if: runner.os == 'macOS'
+      uses: actions/cache@v6
+      with:
+        path: ~/Library/Caches/Homebrew
+        key: brew-${{ runner.os }}-${{ hashFiles('.github/workflows/**') }}
+
+    - name: Install dependencies (macOS)
+      if: runner.os == 'macOS'
+      env:
+        HOMEBREW_NO_AUTO_UPDATE: 1
+        HOMEBREW_NO_INSTALL_CLEANUP: 1
+      run: |
+        brew install glfw glm sol2 nlohmann-json
+        if [ "${{ matrix.lua }}" != "vcpkg" ]; then brew install lua; fi
+
+    - name: Install Lua 5.4 via vcpkg (Linux/macOS)
+      if: matrix.lua == 'vcpkg' && runner.os != 'Windows'
+      shell: bash
+      run: |
+        if [ "$RUNNER_OS" = "macOS" ]; then
+          if [ "$(uname -m)" = "arm64" ]; then TRIPLET=arm64-osx; else TRIPLET=x64-osx; fi
+        else
+          TRIPLET=x64-linux
+        fi
+        git -C "$VCPKG_INSTALLATION_ROOT" fetch --unshallow 2>/dev/null || true
+        BASELINE="$(git -C "$VCPKG_INSTALLATION_ROOT" rev-parse HEAD)"
+        mkdir -p "$RUNNER_TEMP/vcpkg_lua"
+        cat > "$RUNNER_TEMP/vcpkg_lua/vcpkg.json" <<EOF
+        {
+          "name": "lua-pin",
+          "version": "0.0.0",
+          "dependencies": [ "lua" ],
+          "builtin-baseline": "$BASELINE",
+          "overrides": [ { "name": "lua", "version": "5.4.8" } ]
+        }
+        EOF
+        "$VCPKG_INSTALLATION_ROOT/vcpkg" install --triplet "$TRIPLET" \
+          --x-manifest-root="$RUNNER_TEMP/vcpkg_lua" \
+          --x-install-root="$RUNNER_TEMP/vcpkg_lua/installed"
+        echo "CMAKE_PREFIX_PATH=$RUNNER_TEMP/vcpkg_lua/installed/$TRIPLET" >> "$GITHUB_ENV"
+
+    - name: Configure CMake
+      shell: bash
+      run: >
+        cmake -B "${{ steps.strings.outputs.build-output-dir }}"
+        -DCMAKE_CXX_COMPILER=${{ matrix.cpp_compiler }}
+        -DCMAKE_C_COMPILER=${{ matrix.c_compiler }}
+        -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
+        -S "${{ github.workspace }}"
+
+    - name: Build
+      run: cmake --build ${{ steps.strings.outputs.build-output-dir }} --config ${{ matrix.build_type }}
+
+    - name: Test
+      working-directory: ${{ steps.strings.outputs.build-output-dir }}
+      run: ctest --build-config ${{ matrix.build_type }}
+
+    - name: Package
+      if: steps.strings.outputs.package == 'true'
+      shell: bash
+      env:
+        BUILD_DIR: ${{ steps.strings.outputs.build-output-dir }}
+        BUILD_TYPE: ${{ matrix.build_type }}
+        PKG_NAME: ${{ github.event.repository.name }}-${{ runner.os }}-${{ matrix.c_compiler }}
+        SKIP_DIRS: ".git .github dist deps libs vcpkg_cache"
+      run: |
+        BUILD_DIR="$(cygpath -u "$BUILD_DIR" 2>/dev/null || echo "$BUILD_DIR")"
+        SKIP_DIRS="$SKIP_DIRS $(basename "$BUILD_DIR")"
+        mkdir -p "dist/$PKG_NAME"
+        if [ "$RUNNER_OS" = "Windows" ]; then
+          cp "$BUILD_DIR/$BUILD_TYPE"/*.exe "dist/$PKG_NAME/"
+          cp "$BUILD_DIR/$BUILD_TYPE"/*.dll "dist/$PKG_NAME/" 2>/dev/null || true
+        else
+          find "$BUILD_DIR" -maxdepth 1 -type f -perm -u+x -exec cp {} "dist/$PKG_NAME/" \;
+        fi
+        for d in */; do
+          d="${d%/}"
+          case " $SKIP_DIRS " in *" $d "*) continue ;; esac
+          cp -r "$d" "dist/$PKG_NAME/"
+        done
+        cd dist
+        if [ "$RUNNER_OS" = "Windows" ]; then
+          cmake -E tar cf "$PKG_NAME.zip" --format=zip "$PKG_NAME"
+        else
+          tar czf "$PKG_NAME.tar.gz" "$PKG_NAME"
+        fi
+
+    - name: Upload artifact
+      if: steps.strings.outputs.package == 'true'
+      uses: actions/upload-artifact@v7
+      with:
+        name: ${{ github.event.repository.name }}-${{ runner.os }}-${{ matrix.c_compiler }}
+        path: |
+          dist/*.zip
+          dist/*.tar.gz
+        archive: false
+        if-no-files-found: error
+
+    - name: Attach to GitHub release
+      if: github.event_name == 'release' && steps.strings.outputs.package == 'true'
+      uses: softprops/action-gh-release@v3
+      with:
+        files: |
+          dist/*.zip
+          dist/*.tar.gz

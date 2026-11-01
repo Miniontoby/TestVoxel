@@ -22,7 +22,7 @@ public:
     GLuint fontTextureID = 0;
     stbtt_bakedchar cdata[96];
 
-    FontRenderer();
+    FontRenderer(Dimensions2D resolution);
     ~FontRenderer();
 
     bool init(const std::string& fontPath);
@@ -31,6 +31,8 @@ public:
             Dimensions2D resolution);
 
 private:
+    Dimensions2D baseResolution;
+
     std::vector<float> generateFontVertices(float x, float y, float scaleX,
         float scaleY, Dimensions2D resolution,
         std::string_view text) const;

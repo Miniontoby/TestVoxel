@@ -9,7 +9,10 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 
-FontRenderer::FontRenderer() {}
+FontRenderer::FontRenderer(Dimensions2D resolution)
+      : baseResolution{resolution}
+{
+}
 
 FontRenderer::~FontRenderer() {
     if (vao != 0) glDeleteVertexArrays(1, &vao);
@@ -76,9 +79,10 @@ std::vector<float> FontRenderer::generateFontVertices(float x, float y,
     float rx = 0.0f;
     float ry = 0.0f;
 
-    float aspect = static_cast<float>(resolution.width) / static_cast<float>(resolution.height);
-    float charWidth = scaleX / aspect;
-    float charHeight = scaleY;
+    float scaleWidth = scaleX * static_cast<float>(resolution.width)
+                     / static_cast<float>(this->baseResolution.width);
+    float scaleHeight = scaleY * static_cast<float>(resolution.height)
+                      / static_cast<float>(this->baseResolution.height);
 
     for (size_t i = 0; i < text.length(); ++i) {
         int charIndex = text[i];
@@ -87,10 +91,14 @@ std::vector<float> FontRenderer::generateFontVertices(float x, float y,
         stbtt_aligned_quad q;
         stbtt_GetBakedQuad(cdata, 512, 512, charIndex - 32, &rx, &ry, &q, 1);
 
-        float x0 = x + (i * charWidth);
-        float x1 = x0 + charWidth;
-        float y0 = y;
-        float y1 = y0 + charHeight;
+        // This scaling would be much more efficient with a transformation
+        // matrix. Until someone comes along who knows the right way to move
+        // this to the GPU, it's an inefficient, but easily verifiable CPU
+        // implementation.
+        float x0 = q.x0 * scaleWidth + x;
+        float x1 = q.x1 * scaleWidth + x;
+        float y0 = q.y0 * scaleHeight + y;
+        float y1 = q.y1 * scaleHeight + y;
 
         float quad[] = {
             x0, y0, q.s0, q.t0,

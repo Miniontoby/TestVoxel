@@ -33,6 +33,10 @@
 
 namespace fs = std::filesystem;
 
+namespace {
+  constexpr Dimensions2D baseResolution{1920, 1080};
+}
+
 std::string g_CurrentModPath = "";
 std::string g_ActiveGameFolder = "craft_and_ruin";
 std::string g_ActiveWorldName = "world_alpha";
@@ -670,7 +674,7 @@ int main() {
         glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
 
         g_Hotbar = new Hotbar();
-        g_FontRenderer = new FontRenderer();
+        g_FontRenderer = new FontRenderer(baseResolution);
         g_ChatSystem = new ChatSystem();
         g_LightingSystem = new LightingSystem();
         g_Skybox = new Skybox();
@@ -912,8 +916,8 @@ int main() {
                 int fw, fh;
                 glfwGetFramebufferSize(window, &windowSize.width,
                          &windowSize.height);
-                g_FontRenderer->renderText(fontProgram, text, x, y, 0.05f,
-                        0.05f, glm::vec4(1.0f), windowSize);
+                g_FontRenderer->renderText(fontProgram, text, x, y, 1.0f,
+                        1.0f, glm::vec4(1.0f), windowSize);
             }
         };
 
@@ -1173,34 +1177,8 @@ int main() {
                 glUniform1i(glGetUniformLocation(shaderProgram, "u_Unlit"), 0);
                 glUniform1i(glGetUniformLocation(shaderProgram, "u_IsGUI"), 0);
 
-                // --- PASS 1: OPAQUE TERRAIN ---
-                glDepthMask(GL_TRUE);
-                glEnable(GL_CULL_FACE);
-                glCullFace(GL_BACK);
-                for (auto& pair : world.chunks) {
-                    if (pair.second->opaqueVertexCount > 0 && pair.second->opaqueVAO != 0) {
-                        glm::mat4 model = glm::translate(glm::mat4(1.0f), glm::vec3(
-                            pair.first.first * CHUNK_WIDTH, 0.0f, pair.first.second * CHUNK_WIDTH
-                        ));
-                        glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "model"), 1, GL_FALSE, glm::value_ptr(model));
-                        pair.second->drawOpaque();
-                    }
-                }
-
-                // --- PASS 2: TRANSPARENT TERRAIN (Water, Leaves, Plants) ---
-                glDepthMask(GL_FALSE);
-                glDisable(GL_CULL_FACE); // Double-sided rendering for cross-planes and water
-                for (auto& pair : world.chunks) {
-                    if (pair.second->transparentVertexCount > 0 && pair.second->transparentVAO != 0) {
-                        glm::mat4 model = glm::translate(glm::mat4(1.0f), glm::vec3(
-                            pair.first.first * CHUNK_WIDTH, 0.0f, pair.first.second * CHUNK_WIDTH
-                        ));
-                        glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "model"), 1, GL_FALSE, glm::value_ptr(model));
-                        pair.second->drawTransparent();
-                    }
-                }
-                glEnable(GL_CULL_FACE);
-                glDepthMask(GL_TRUE);
+                // --- PASS 1: TERRAIN ---
+                g_WorldInstance->render(shaderProgram);
 
                 // --- RENDER 3D ANIMATED MODEL PASS ---
                 glUseProgram(modelShaderProgram);

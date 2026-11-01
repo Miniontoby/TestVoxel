@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.18)
+cmake_minimum_required(VERSION 3.15)
 project(VoxelEngine C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
@@ -18,7 +18,10 @@ if (TARGET unofficial::lua::lua)
     set(VOXEL_LUA_TARGET unofficial::lua::lua)
 else()
     find_package(Lua 5.4 REQUIRED)
-    set(VOXEL_LUA_TARGET Lua::Lua)
+    add_library(voxel_lua INTERFACE)
+    target_include_directories(voxel_lua INTERFACE ${LUA_INCLUDE_DIR})
+    target_link_libraries(voxel_lua INTERFACE ${LUA_LIBRARIES})
+    set(VOXEL_LUA_TARGET voxel_lua)
 endif()
 
 if (NOT unofficial-lua_FOUND AND NOT Lua_FOUND)

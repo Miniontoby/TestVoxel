@@ -72,16 +72,17 @@ jobs:
         packages: libglfw3-dev libglm-dev sol2-dev nlohmann-json3-dev libgl1-mesa-dev xorg-dev
         version: ${{ hashFiles('.github/workflows/**') }}
 
-    - name: Linux build workarounds (opengl32 symlink, Lua include path)
+    - name: Linux build workarounds (opengl32 symlink, Lua)
       if: runner.os == 'Linux'
       run: |
         sudo ln -sf /usr/lib/x86_64-linux-gnu/libGL.so /usr/lib/x86_64-linux-gnu/libopengl32.so
         if [ "${{ matrix.lua }}" = "vcpkg" ]; then
-          echo "CXXFLAGS=-I$RUNNER_TEMP/vcpkg_lua/installed/x64-linux/include" >> "$GITHUB_ENV"
+          P="$RUNNER_TEMP/vcpkg_lua/installed/x64-linux"
+          echo "CXXFLAGS=-I$P/include" >> "$GITHUB_ENV"
+          echo "LDFLAGS=-L$P/lib -Wl,--whole-archive -llua -Wl,--no-whole-archive -ldl -lm" >> "$GITHUB_ENV"
         else
           echo "CXXFLAGS=-I/usr/include/lua5.4" >> "$GITHUB_ENV"
         fi
-        echo "LDFLAGS=-L$RUNNER_TEMP/vcpkg_lua/installed/x64-linux/lib -llua -ldl -lm" >> "$GITHUB_ENV"
 
     - name: Cache vcpkg binaries (Windows)
       if: runner.os == 'Windows'

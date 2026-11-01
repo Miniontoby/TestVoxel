@@ -11,6 +11,7 @@ on:
 
 jobs:
   build:
+    name: ${{ matrix.os }} (${{ matrix.lua || 'default' }} lua)
     runs-on: ${{ matrix.os }}
     permissions:
       contents: write
@@ -31,6 +32,16 @@ jobs:
             build_type: Release
             c_compiler: clang
             cpp_compiler: clang++
+          - os: ubuntu-26.04
+            build_type: Release
+            c_compiler: clang
+            cpp_compiler: clang++
+            lua: vcpkg
+          - os: macos-latest
+            build_type: Release
+            c_compiler: clang
+            cpp_compiler: clang++
+            lua: vcpkg
 
     steps:
     - uses: actions/checkout@v7
@@ -40,6 +51,12 @@ jobs:
       shell: bash
       run: |
         echo "build-output-dir=${{ github.workspace }}/build_ci" >> "$GITHUB_OUTPUT"
+        case "${{ github.event_name }}" in
+          release|workflow_dispatch|pull_request) PKG=true ;;
+          *) PKG=false ;;
+        esac
+        [ "${{ matrix.lua }}" = "vcpkg" ] && PKG=false
+        echo "package=$PKG" >> "$GITHUB_OUTPUT"
 
     - name: Install dependencies (Linux)
       if: runner.os == 'Linux'
@@ -52,7 +69,9 @@ jobs:
       if: runner.os == 'Linux'
       run: |
         sudo ln -sf /usr/lib/x86_64-linux-gnu/libGL.so /usr/lib/x86_64-linux-gnu/libopengl32.so
-        echo "CXXFLAGS=-I/usr/include/lua5.4" >> "$GITHUB_ENV"
+        if [ "${{ matrix.lua }}" != "vcpkg" ]; then
+          echo "CXXFLAGS=-I/usr/include/lua5.4" >> "$GITHUB_ENV"
+        fi
 
     - name: Cache vcpkg binaries (Windows)
       if: runner.os == 'Windows'
@@ -92,7 +111,19 @@ jobs:
         clang -x c -c /dev/null -o "$RUNNER_TEMP/stubs/stub.o"
         ar rcs "$RUNNER_TEMP/stubs/libopengl32.a" "$RUNNER_TEMP/stubs/stub.o"
         echo "LDFLAGS=-L$RUNNER_TEMP/stubs -framework OpenGL" >> "$GITHUB_ENV"
-        
+
+    - name: Install Lua via vcpkg (Linux/macOS)
+      if: matrix.lua == 'vcpkg' && runner.os != 'Windows'
+      shell: bash
+      run: |
+        if [ "$RUNNER_OS" = "macOS" ]; then
+          if [ "$(uname -m)" = "arm64" ]; then TRIPLET=arm64-osx; else TRIPLET=x64-osx; fi
+        else
+          TRIPLET=x64-linux
+        fi
+        "$VCPKG_INSTALLATION_ROOT/vcpkg" install lua:$TRIPLET
+        echo "CMAKE_PREFIX_PATH=$VCPKG_INSTALLATION_ROOT/installed/$TRIPLET" >> "$GITHUB_ENV"
+
     - name: Configure CMake
       run: >
         cmake -B ${{ steps.strings.outputs.build-output-dir }}
@@ -109,7 +140,7 @@ jobs:
       run: ctest --build-config ${{ matrix.build_type }}
 
     - name: Package
-      if: github.event_name == 'release' || github.event_name == 'workflow_dispatch'
+      if: steps.strings.outputs.package == 'true'
       shell: bash
       env:
         BUILD_DIR: ${{ steps.strings.outputs.build-output-dir }}
@@ -139,7 +170,7 @@ jobs:
         fi
 
     - name: Upload artifact
-      if: github.event_name == 'release' || github.event_name == 'workflow_dispatch'
+      if: steps.strings.outputs.package == 'true'
       uses: actions/upload-artifact@v7
       with:
         name: ${{ github.event.repository.name }}-${{ runner.os }}-${{ matrix.c_compiler }}
@@ -149,7 +180,7 @@ jobs:
         if-no-files-found: error
 
     - name: Attach to GitHub release
-      if: github.event_name == 'release'
+      if: github.event_name == 'release' && steps.strings.outputs.package == 'true'
       uses: softprops/action-gh-release@v3
       with:
         files: |

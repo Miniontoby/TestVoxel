@@ -112,7 +112,7 @@ jobs:
         ar rcs "$RUNNER_TEMP/stubs/libopengl32.a" "$RUNNER_TEMP/stubs/stub.o"
         echo "LDFLAGS=-L$RUNNER_TEMP/stubs -framework OpenGL" >> "$GITHUB_ENV"
 
-    - name: Install Lua via vcpkg (Linux/macOS)
+    - name: Install Lua 5.4 via vcpkg (Linux/macOS)
       if: matrix.lua == 'vcpkg' && runner.os != 'Windows'
       shell: bash
       run: |
@@ -121,8 +121,22 @@ jobs:
         else
           TRIPLET=x64-linux
         fi
-        "$VCPKG_INSTALLATION_ROOT/vcpkg" install lua:$TRIPLET
-        echo "CMAKE_PREFIX_PATH=$VCPKG_INSTALLATION_ROOT/installed/$TRIPLET" >> "$GITHUB_ENV"
+        git -C "$VCPKG_INSTALLATION_ROOT" fetch --unshallow 2>/dev/null || true
+        BASELINE="$(git -C "$VCPKG_INSTALLATION_ROOT" rev-parse HEAD)"
+        mkdir -p "$RUNNER_TEMP/vcpkg_lua"
+        cat > "$RUNNER_TEMP/vcpkg_lua/vcpkg.json" <<EOF
+        {
+          "name": "lua-pin",
+          "version": "0.0.0",
+          "dependencies": [ "lua" ],
+          "builtin-baseline": "$BASELINE",
+          "overrides": [ { "name": "lua", "version": "5.4.8" } ]
+        }
+        EOF
+        "$VCPKG_INSTALLATION_ROOT/vcpkg" install --triplet "$TRIPLET" \
+          --x-manifest-root="$RUNNER_TEMP/vcpkg_lua" \
+          --x-install-root="$RUNNER_TEMP/vcpkg_lua/installed"
+        echo "CMAKE_PREFIX_PATH=$RUNNER_TEMP/vcpkg_lua/installed/$TRIPLET" >> "$GITHUB_ENV"
 
     - name: Configure CMake
       run: >

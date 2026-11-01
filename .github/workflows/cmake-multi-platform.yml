@@ -76,9 +76,12 @@ jobs:
       if: runner.os == 'Linux'
       run: |
         sudo ln -sf /usr/lib/x86_64-linux-gnu/libGL.so /usr/lib/x86_64-linux-gnu/libopengl32.so
-        if [ "${{ matrix.lua }}" != "vcpkg" ]; then
+        if [ "${{ matrix.lua }}" = "vcpkg" ]; then
+          echo "CXXFLAGS=-I$RUNNER_TEMP/vcpkg_lua/installed/x64-linux/include" >> "$GITHUB_ENV"
+        else
           echo "CXXFLAGS=-I/usr/include/lua5.4" >> "$GITHUB_ENV"
         fi
+        echo "LDFLAGS=-L$RUNNER_TEMP/vcpkg_lua/installed/x64-linux/lib -llua -ldl -lm" >> "$GITHUB_ENV"
 
     - name: Cache vcpkg binaries (Windows)
       if: runner.os == 'Windows'

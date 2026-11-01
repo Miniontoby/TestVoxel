@@ -132,12 +132,16 @@ jobs:
         echo "CMAKE_PREFIX_PATH=$RUNNER_TEMP/vcpkg_lua/installed/$TRIPLET" >> "$GITHUB_ENV"
 
     - name: Configure CMake
-      run: >
-        cmake -B ${{ steps.strings.outputs.build-output-dir }}
-        -DCMAKE_CXX_COMPILER=${{ matrix.cpp_compiler }}
-        -DCMAKE_C_COMPILER=${{ matrix.c_compiler }}
-        -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
-        -S ${{ github.workspace }}
+      shell: bash
+      run: |
+        EXTRA=""
+        [ -n "$LUA_CFG_DIR" ] && EXTRA="-Dunofficial-lua_DIR=$LUA_CFG_DIR"
+        cmake -B "${{ steps.strings.outputs.build-output-dir }}" \
+          -DCMAKE_CXX_COMPILER=${{ matrix.cpp_compiler }} \
+          -DCMAKE_C_COMPILER=${{ matrix.c_compiler }} \
+          -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
+          $EXTRA \
+          -S "${{ github.workspace }}"
 
     - name: Build
       run: cmake --build ${{ steps.strings.outputs.build-output-dir }} --config ${{ matrix.build_type }}
